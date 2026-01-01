@@ -1,0 +1,21 @@
+import https from 'https';
+import fs from 'fs';
+import app from './app.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const cert = fs.readFileSync('./certs/cert.pem');
+const pem = fs.readFileSync('./certs/key.pem');
+
+const PORT = process.env.SFTP_SERVER_PORT
+
+const options = {
+  cert: cert,
+  key: pem
+};
+
+https.createServer(options, app).listen(PORT, () => {
+  console.log(`SFTP server running on port ${PORT}`);
+});
+
