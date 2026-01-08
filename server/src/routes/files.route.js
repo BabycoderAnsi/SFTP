@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { withSftpClient } from '../services/sftp.services.js';
 import { resolveSafePath } from '../utils/path.utils.js';
+import { requireAuth } from '../../middlewares/requireAuth.js';
 
 const router = Router();
 
-router.get('/list', async (req, res, next) => {
+router.get('/list', requireAuth(['READONLY', 'ADMIN']), async (req, res, next) => {
   try {
     const safePath = resolveSafePath(req.query.path);
     console.log('Safe Path:', safePath);
@@ -25,7 +26,7 @@ router.get('/list', async (req, res, next) => {
 /**
  * Download file (streaming)
  */
-router.get('/download', async (req, res, next) => {
+router.get('/download', requireAuth(['READONLY', 'WRITEONLY']), async (req, res, next) => {
   try {
     const safePath = resolveSafePath(req.query.path);
     const dst = req.query.dst;
@@ -42,7 +43,7 @@ router.get('/download', async (req, res, next) => {
   }
 });
 
-router.get('/create-folder', async (req, res, next) => {
+router.get('/create-folder', requireAuth(['ADMIN']), async (req, res, next) => {
     try {
         const safePath = resolveSafePath(req.query.path);
 
@@ -56,7 +57,7 @@ router.get('/create-folder', async (req, res, next) => {
     }   
 });
 
-router.get('/create-file', async (req, res, next) => {
+router.get('/create-file', requireAuth(['ADMIN']), async (req, res, next) => {
     try {
         const safePath = resolveSafePath(req.query.path);
 
@@ -70,7 +71,7 @@ router.get('/create-file', async (req, res, next) => {
     }
 })
 
-router.get('/delete', async (req, res, next) => {
+router.get('/delete', requireAuth(['ADMIN']), async (req, res, next) => {
     try {
         const safePath = resolveSafePath(req.query.path);
 
