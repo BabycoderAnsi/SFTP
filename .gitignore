@@ -64,3 +64,6 @@ prisma/migrations/
 *.tmp
 *.temp
 *.bak
+
+remanants
+*.txt
