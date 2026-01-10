@@ -13,5 +13,9 @@ export function resolveSafePath(userPath = '/') {
     throw new Error('Invalid path');
   }
 
+  if(resolved.includes('..')){
+    throw new Error('Invalid path');
+  }
+
   return resolved;
 }

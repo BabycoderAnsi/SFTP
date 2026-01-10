@@ -15,3 +15,21 @@ export async function withSftpClient(fn) {
     await sftp.end();
   }
 }
+
+export async function uploadFile(sftp, remotePath, buffer) {
+  try {
+    return await sftp.put(buffer, remotePath, {
+      flags: 'wx',
+    });
+  } catch (err) {
+    throw err;
+  }
+}
+
+export async function createFolder(sftp, remotePath) {
+  try {
+    return await sftp.mkdir(remotePath);
+  } catch (err) {
+    throw err;
+  }
+}
