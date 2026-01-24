@@ -19,3 +19,14 @@ https.createServer(options, app).listen(PORT, () => {
   console.log(`SFTP server running on port ${PORT}`);
 });
 
+process.on("SIGTERM", () => {
+  console.log("Termination signal received");
+  process.exit(0);
+})
+
+process.on("SIGINT", () => {
+  console.log("Interrupt signal received");
+  process.exit(0);
+})
+
+

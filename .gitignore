@@ -50,6 +50,7 @@ docker-compose.override.yml
 Thumbs.db
 .idea/
 .vscode/
+!.vscode/settings.json
 *.swp
 *.swo
 

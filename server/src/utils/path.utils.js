@@ -7,8 +7,6 @@ export function resolveSafePath(userPath = '/') {
     path.posix.join(BASE_DIR, userPath)
   );
 
-  console.log('Resolved path:', resolved);
-
   if (!resolved.startsWith(BASE_DIR)) {
     throw new Error('Invalid path');
   }

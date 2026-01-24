@@ -26,8 +26,6 @@ const USERS = [
 ]
 
 router.post('/login', async (req, res)=>{
-    const data = req.body;
-    console.log('Login data received:', data);
     const { username, password } = req.body;
 
     const user = USERS.find(u=> u.username === username);

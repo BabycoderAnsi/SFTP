@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { auditMiddleware } from '../middlewares/audit.js';
 import { withSftpClient } from '../services/sftp.services.js';
 import { resolveSafePath } from '../utils/path.utils.js';
 import { requireAuth } from '../../middlewares/requireAuth.js';
@@ -6,13 +7,12 @@ import { upload } from '../../middlewares/upload.middleware.js';
 import { uploadFile, createFolder } from '../services/sftp.services.js';
 const router = Router();
 
-router.get('/list', requireAuth(['READONLY', 'ADMIN']), async (req, res, next) => {
+router.get('/list', requireAuth(['READONLY', 'ADMIN']), auditMiddleware('LIST'), async (req, res, next) => {
   try {
     const safePath = resolveSafePath(req.query.path);
-    console.log('Safe Path:', safePath);
 
-    const files = await withSftpClient(async (sftp) => {
-      return await sftp.list(safePath)
+    const files = await withSftpClient((sftp) => {
+      return sftp.list(safePath)
     });
 
     res.json({
@@ -27,12 +27,11 @@ router.get('/list', requireAuth(['READONLY', 'ADMIN']), async (req, res, next) =
 /**
  * Download file (streaming)
  */
-router.get('/download', requireAuth(['READONLY', 'ADMIN']), async (req, res, next) => {
+router.get('/download', requireAuth(['READONLY', 'ADMIN']), auditMiddleware('DOWNLOAD'), async (req, res, next) => {
   try {
     const safePath = resolveSafePath(req.query.path);
     const dst = req.query.dst;
     const fileName = dst.concat(safePath.split('/').pop());
-    console.log('Downloading file to:', fileName);
 
     const result = await withSftpClient(async (sftp) => {
       return await sftp.fastGet(safePath, fileName);
@@ -44,7 +43,7 @@ router.get('/download', requireAuth(['READONLY', 'ADMIN']), async (req, res, nex
   }
 });
 
-router.post('/upload', requireAuth(['WRITEONLY', 'ADMIN']), upload.single('file'), async (req, res, next) => {
+router.post('/upload', requireAuth(['WRITEONLY', 'ADMIN']), auditMiddleware('UPLOAD'), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
       res.status(400).json({ message: "No file uploaded" })
@@ -63,7 +62,7 @@ router.post('/upload', requireAuth(['WRITEONLY', 'ADMIN']), upload.single('file'
   }
 })
 
-router.post('/mkdir', requireAuth(['WRITEONLY', 'ADMIN']), async (req, res, next) => {
+router.post('/mkdir', requireAuth(['WRITEONLY', 'ADMIN']), auditMiddleware('MKDIR'), async (req, res, next) => {
   try {
     const safePath = resolveSafePath(req.body.path);
 
