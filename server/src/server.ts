@@ -1,18 +1,18 @@
-import https from 'https';
-import fs from 'fs';
-import app from './app.js';
-import dotenv from 'dotenv';
+import https from "https";
+import fs from "fs";
+import app from "./app.ts";
+import dotenv from "dotenv";
 
 dotenv.config();
 
-const cert = fs.readFileSync('./certs/cert.pem');
-const pem = fs.readFileSync('./certs/key.pem');
+const cert = fs.readFileSync("./certs/cert.pem");
+const pem = fs.readFileSync("./certs/key.pem");
 
-const PORT = process.env.SFTP_SERVER_PORT
+const PORT: number = parseInt(process.env.SFTP_SERVER_PORT || "8443", 10);
 
-const options = {
+const options: https.ServerOptions = {
   cert: cert,
-  key: pem
+  key: pem,
 };
 
 https.createServer(options, app).listen(PORT, () => {
@@ -22,11 +22,9 @@ https.createServer(options, app).listen(PORT, () => {
 process.on("SIGTERM", () => {
   console.log("Termination signal received");
   process.exit(0);
-})
+});
 
 process.on("SIGINT", () => {
   console.log("Interrupt signal received");
   process.exit(0);
-})
-
-
+});
