@@ -1,9 +1,9 @@
 import express, { Application } from "express";
 import helmet from "helmet";
-import authRouter from "../auth/auth.routes.ts";
-import healthRoute from "./routes/health.route.ts";
-import filesRouter from "./routes/files.route.ts";
-import { requestIdMiddleware } from "./middlewares/requestId.ts";
+import authRouter from '../auth/auth.routes';
+import healthRoute from './routes/health.route';
+import filesRouter from './routes/files.route';
+import { requestIdMiddleware } from './middlewares/requestId';
 
 const app: Application = express();
 

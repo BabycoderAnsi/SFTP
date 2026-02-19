@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyToken } from "../auth/jwt.utils.ts";
+import { verifyToken } from '../auth/jwt.utils';
 
 export function requireAuth(requiredRoles: string[] = []) {
   return (req: Request, res: Response, next: NextFunction): void => {

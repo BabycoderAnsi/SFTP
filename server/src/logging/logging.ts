@@ -1,4 +1,4 @@
-import { LogMeta } from "../types/index.ts";
+import { LogMeta } from '../types/index';
 
 export function log(level: string, message: string, meta: LogMeta = {}): void {
   const entry = {

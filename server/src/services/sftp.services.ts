@@ -1,5 +1,5 @@
 import SftpClient from "ssh2-sftp-client";
-import { retry } from "../resilience/retry.js";
+import { retry } from '../resilience/retry';
 import dotenv from "dotenv";
 
 dotenv.config();

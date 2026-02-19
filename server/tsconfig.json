@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "commonjs",
+    "moduleResolution": "node",
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": ".",
@@ -16,8 +16,7 @@
     "sourceMap": true,
     "noEmit": false,
     "allowSyntheticDefaultImports": true,
-    "emitDeclarationOnly": true,
-    "allowImportingTsExtensions": true
+    "baseUrl": "."
   },
   "include": ["src/**/*", "auth/**/*", "middlewares/**/*"],
   "exclude": ["node_modules", "dist", "src/generated"]

@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
-import { findUser } from "../src/repositories/user.repo.ts";
-import { signToken } from "./jwt.utils.ts";
+import { findUser } from '../src/repositories/user.repo';
+import { signToken } from './jwt.utils';
 
 export async function loginUser(
   username: string,
