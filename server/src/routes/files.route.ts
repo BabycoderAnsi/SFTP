@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { auditMiddleware } from '../middlewares/audit';
+import { auditMiddleware } from '../../middlewares/audit';
 import {
   withSftpClient,
   uploadFile,
