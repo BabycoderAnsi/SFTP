@@ -234,6 +234,66 @@ All responses now follow standardized format:
 
 ---
 
+## [2026-02-19] Aiven PostgreSQL SSL Configuration
+
+### Issue
+
+Database connection was failing with:
+```
+Error opening a TLS connection: self-signed certificate in certificate chain
+```
+
+### Root Cause
+
+1. Aiven PostgreSQL requires SSL connections
+2. The `sslmode=require` in `DATABASE_URL` conflicted with custom SSL config in the pg Pool
+3. The pg library doesn't handle `sslmode` parameter in connection string when custom `ssl` config is provided
+
+### Solution
+
+1. Strip `sslmode` parameter from `DATABASE_URL` before passing to Pool
+2. Use Aiven CA certificate (`ca.pem`) for proper certificate verification
+3. Fallback to `rejectUnauthorized: false` if CA cert is not present (for local dev)
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/db/prisma.ts` | Added CA certificate loading, stripped sslmode from URL, proper SSL config |
+
+### Implementation Details
+
+```typescript
+// Strip sslmode from connection string to avoid conflicts
+const databaseUrl = rawDatabaseUrl.replace(/[?&]sslmode=[^&]*/gi, '');
+
+// Use CA cert if available
+const sslConfig = hasCaCert
+  ? { ca: fs.readFileSync(caCertPath).toString(), rejectUnauthorized: true }
+  : { rejectUnauthorized: process.env.NODE_ENV === 'production' };
+```
+
+### Certificate Location
+
+```
+server/certs/ca.pem  # Aiven CA certificate (DO NOT COMMIT)
+```
+
+### Verification
+
+Health check now returns:
+```json
+{
+  "status": "ok",
+  "checks": {
+    "database": { "status": "healthy", "latency": 943 },
+    "sftp": { "status": "healthy", "latency": 120 }
+  }
+}
+```
+
+---
+
 ## Pending Tasks
 
 | Task | Status | Priority | Notes |
