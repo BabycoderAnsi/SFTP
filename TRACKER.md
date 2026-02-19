@@ -4,54 +4,92 @@ This document tracks all changes, fixes, and improvements made to the SFTP Gatew
 
 ---
 
-## [2026-02-19] README.md Corrections
+## [2026-02-19] Comprehensive Logging Implementation
 
-### Issues Fixed
+### Overview
 
-| # | Issue | Location | Fix Applied |
-|---|-------|----------|-------------|
-| 1 | Architecture diagram had broken formatting with escaped characters (`\|`, `\`) | Section: Architecture | Replaced with proper ASCII diagram using code block |
-| 2 | File extensions showed `.js` instead of `.ts` | Section: Project Structure | Updated all extensions to `.ts` (TypeScript) |
-| 3 | Role names incorrect (`READ_ONLY`, `READ_WRITE`) | Section: Authorization | Updated to match codebase: `READONLY`, `WRITEONLY`, `ADMIN` |
-| 4 | Folder structure incorrect - `auth/` shown inside `src/` | Section: Project Structure | Moved `auth/` to server root level |
-| 5 | Folder structure incorrect - `middleware/` instead of `middlewares/` | Section: Project Structure | Corrected to `middlewares/` |
-| 6 | Missing `certs/` directory in structure | Section: Project Structure | Added `certs/` with `cert.pem`, `key.pem` |
-| 7 | Missing `src/types/` directory in structure | Section: Project Structure | Added `types/index.ts` |
-| 8 | File naming inconsistency (`files.routes.js` vs `files.route.ts`) | Section: Project Structure | Corrected to match actual: `files.route.ts` |
-| 9 | File naming inconsistency (`sftp.service.js` vs `sftp.services.ts`) | Section: Project Structure | Corrected to match actual: `sftp.services.ts` |
-| 10 | Trailing backslashes in prose sections | Multiple lines | Removed escaped backslashes |
-| 11 | Trailing backslash in Author section | Section: Author | Removed escaped backslash |
+Implemented structured JSON logging across the entire application to ensure:
+- All operations are traceable via `requestId`
+- Security events are logged for compliance
+- Errors are captured with full context
+- Logs are SIEM-ready (JSON format)
 
 ### Files Modified
 
-- `README.md` - Comprehensive corrections to reflect actual project structure
+| File | Changes |
+|------|---------|
+| `src/logging/logging.ts` | Added LogLevel type, log level filtering, stderr for errors |
+| `src/app.ts` | Added global error handler with structured logging |
+| `src/server.ts` | Replaced console.log with structured log() calls |
+| `auth/auth.routes.ts` | Added login attempt/success/failure logging |
+| `middlewares/requireAuth.ts` | Added auth failure logging (missing token, invalid token, forbidden) |
+| `src/services/sftp.services.ts` | Added SFTP lifecycle logging (connect, disconnect, upload, mkdir) |
+| `src/resilience/retry.ts` | Added retry attempt and exhausted logging |
+| `src/db/prisma.ts` | Added DB connection logging |
+| `src/utils/path.utils.ts` | Added path traversal security event logging |
+| `middlewares/audit.ts` | Merged: now does both structured logging AND DB write |
+| `middlewares/upload.middleware.ts` | Added upload error handling with logging |
+| `src/routes/files.route.ts` | Updated import path for merged audit middleware |
 
----
+### Files Deleted
 
-## [2026-02-19] Build & Start Script Fixes
+| File | Reason |
+|------|--------|
+| `src/middlewares/audit.ts` | Merged into `middlewares/audit.ts` |
 
-### Issues Fixed
+### Files Created
 
-| # | Issue | Location | Fix Applied |
-|---|-------|----------|-------------|
-| 1 | `tsconfig.json` had `emitDeclarationOnly: true` preventing JS generation | server/tsconfig.json | Removed `emitDeclarationOnly` and `allowImportingTsExtensions` options |
-| 2 | `package.json` start script referenced `.ts` file instead of `.js` | server/package.json | Changed `node dist/src/server.ts` to `node dist/src/server.js` |
-| 3 | All imports used `.ts` extensions (incompatible with NodeNext module resolution) | All *.ts files | Replaced `.ts` extensions with `.js` in all import statements |
-| 4 | Prisma generated client not copied to dist folder | server/package.json | Updated build script: `tsc && cp -r src/generated dist/src/` |
+| File | Purpose |
+|------|---------|
+| `AGENTS.md` | AI assistant context file for project understanding |
 
-### Files Modified
+### Log Events Added
 
-- `server/tsconfig.json` - Removed `emitDeclarationOnly` and `allowImportingTsExtensions`
-- `server/package.json` - Fixed start script path, added Prisma copy to build script
-- `server/auth/*.ts` - Changed import extensions from `.ts` to `.js`
-- `server/middlewares/*.ts` - Changed import extensions from `.ts` to `.js`
-- `server/src/**/*.ts` - Changed import extensions from `.ts` to `.js`
+| Event | Level | Location |
+|-------|-------|----------|
+| Server started | info | server.ts |
+| Server shutdown (SIGTERM/SIGINT) | info | server.ts |
+| Login attempt | info | auth.routes.ts |
+| Login success | info | auth.routes.ts |
+| Login failed (missing credentials) | warn | auth.routes.ts |
+| Login failed (invalid credentials) | warn | auth.routes.ts |
+| Login error (server error) | error | auth.routes.ts |
+| Auth missing token | warn | requireAuth.ts |
+| Auth invalid token | warn | requireAuth.ts |
+| Auth forbidden (wrong role) | warn | requireAuth.ts |
+| SFTP connecting | debug | sftp.services.ts |
+| SFTP connected | debug | sftp.services.ts |
+| SFTP disconnected | debug | sftp.services.ts |
+| SFTP error | error | sftp.services.ts |
+| SFTP upload start/success/failed | debug/error | sftp.services.ts |
+| SFTP mkdir start/success/failed | debug/error | sftp.services.ts |
+| Retry attempt | warn | retry.ts |
+| Retry exhausted | error | retry.ts |
+| DB connected | info | prisma.ts |
+| Path traversal blocked | warn | path.utils.ts |
+| Audit write failed | error | audit.ts |
+| Upload error (file too large) | warn | upload.middleware.ts |
+| Unhandled error | error | app.ts (global handler) |
 
-### Result
+### Configuration
 
-- `npm run build` now successfully compiles TypeScript to JavaScript
-- `npm run start` now successfully runs the server on port 8443
-- Health endpoint returns: `{"status":"ok","server":"SFTP Gateway"}`
+Added `LOG_LEVEL` environment variable support:
+```env
+LOG_LEVEL=info  # debug | info | warn | error
+```
+
+### Log Output Example
+
+```json
+{
+  "timestamp": "2026-02-19T12:00:00.000Z",
+  "level": "info",
+  "message": "server_started",
+  "port": 8443,
+  "environment": "development",
+  "protocol": "https"
+}
+```
 
 ---
 
@@ -73,57 +111,14 @@ This document tracks all changes, fixes, and improvements made to the SFTP Gatew
 
 - `server/tsconfig.json` - Changed module system to CommonJS
 - `server/package.json` - Removed type:module, updated scripts, added dependencies
-- `server/auth/auth.routes.ts` - Fixed imports
-- `server/auth/auth.service.ts` - Fixed imports
-- `server/auth/jwt.utils.ts` - Fixed imports
-- `server/middlewares/audit.ts` - Fixed imports
-- `server/middlewares/requireAuth.ts` - Fixed imports
-- `server/src/app.ts` - Fixed imports
-- `server/src/db/prisma.ts` - Fixed imports, SSL config added
-- `server/src/logging/logging.ts` - Fixed imports
-- `server/src/middlewares/audit.ts` - Fixed imports
-- `server/src/repositories/audit.repo.ts` - Fixed imports
-- `server/src/repositories/user.repo.ts` - Fixed imports
-- `server/src/routes/files.route.ts` - Fixed imports
-- `server/src/server.ts` - Fixed imports
-- `server/src/services/sftp.services.ts` - Fixed imports
-- `server/src/types/express.d.ts` - Fixed imports
+- `server/auth/*.ts` - Fixed imports
+- `server/middlewares/*.ts` - Fixed imports
+- `server/src/**/*.ts` - Fixed imports
 
 ### New Dependencies Added
 
 - `rimraf` - Cross-platform rm -rf for clean builds
 - `ts-node-dev` - TypeScript development runtime with hot reload
-
-### Configuration Changes
-
-**tsconfig.json:**
-```json
-{
-  "compilerOptions": {
-    "module": "commonjs",        // Changed from NodeNext
-    "moduleResolution": "node",  // Changed from NodeNext
-    "baseUrl": "."               // Added for cleaner imports
-    // Removed: emitDeclarationOnly, allowImportingTsExtensions
-  }
-}
-```
-
-**package.json scripts:**
-```json
-{
-  "build": "rimraf dist && tsc && cp -r src/generated dist/src/",
-  "start": "node dist/src/server.js",
-  "start:dev": "ts-node-dev --respawn --transpile-only src/server.ts"
-}
-```
-
-### Result
-
-- Build and start scripts work correctly
-- Server runs on port 8443
-- Health endpoint returns: `{"status":"ok","server":"SFTP Gateway"}`
-- Project now follows Atlas pattern for TypeScript configuration
-- Development branch merged into main with all fixes
 
 ---
 

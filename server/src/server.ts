@@ -2,6 +2,7 @@ import https from "https";
 import fs from "fs";
 import app from './app';
 import dotenv from "dotenv";
+import { log } from './logging/logging';
 
 dotenv.config();
 
@@ -9,6 +10,7 @@ const cert = fs.readFileSync("./certs/cert.pem");
 const pem = fs.readFileSync("./certs/key.pem");
 
 const PORT: number = parseInt(process.env.SFTP_SERVER_PORT || "8443", 10);
+const NODE_ENV = process.env.NODE_ENV || "development";
 
 const options: https.ServerOptions = {
   cert: cert,
@@ -16,15 +18,19 @@ const options: https.ServerOptions = {
 };
 
 https.createServer(options, app).listen(PORT, () => {
-  console.log(`SFTP server running on port ${PORT}`);
+  log("info", "server_started", {
+    port: PORT,
+    environment: NODE_ENV,
+    protocol: "https",
+  });
 });
 
 process.on("SIGTERM", () => {
-  console.log("Termination signal received");
+  log("info", "server_shutdown", { signal: "SIGTERM" });
   process.exit(0);
 });
 
 process.on("SIGINT", () => {
-  console.log("Interrupt signal received");
+  log("info", "server_shutdown", { signal: "SIGINT" });
   process.exit(0);
 });

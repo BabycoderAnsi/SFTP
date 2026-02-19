@@ -1,3 +1,5 @@
+import { log } from '../logging/logging';
+
 export async function retry<T>(
   fn: () => Promise<T>,
   maxRetries: number
@@ -9,8 +11,18 @@ export async function retry<T>(
       return await fn();
     } catch (error) {
       lastError = error as Error;
+      log("warn", "retry_attempt", {
+        attempt: i + 1,
+        maxRetries,
+        error: lastError.message,
+      });
     }
   }
+
+  log("error", "retry_exhausted", {
+    maxRetries,
+    lastError: lastError?.message,
+  });
 
   throw lastError;
 }
