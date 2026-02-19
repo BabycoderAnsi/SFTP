@@ -122,6 +122,118 @@ LOG_LEVEL=info  # debug | info | warn | error
 
 ---
 
+## [2026-02-19] API Improvements & Security Fixes
+
+### Overview
+
+Comprehensive API improvements addressing security vulnerabilities, bad practices, and functional issues across all 6 API endpoints.
+
+### New Dependencies Added
+
+| Package | Purpose |
+|---------|---------|
+| `zod` | Input validation |
+| `express-rate-limit` | Rate limiting for login endpoint |
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `src/schemas/index.ts` | Zod validation schemas for all endpoints |
+| `middlewares/validate.middleware.ts` | Request body/query validation middleware |
+| `middlewares/rateLimit.middleware.ts` | Rate limiting middleware |
+| `middlewares/timeout.middleware.ts` | Request timeout middleware |
+| `src/utils/sanitize.utils.ts` | Filename and path sanitization utilities |
+| `src/utils/response.utils.ts` | Standardized API response helpers |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `auth/jwt.utils.ts` | Added refresh token support, 15min access tokens |
+| `auth/auth.service.ts` | Returns both access and refresh tokens |
+| `auth/auth.routes.ts` | Added rate limiting, validation, `/refresh` and `/logout` endpoints |
+| `src/routes/files.route.ts` | Fixed download streaming, upload streaming, pagination, validation |
+| `src/routes/health.route.ts` | Added DB and SFTP dependency checks |
+| `src/services/sftp.services.ts` | Added streaming upload, removed buffer-based upload |
+| `middlewares/upload.middleware.ts` | Changed to disk storage for streaming |
+| `src/app.ts` | Added API versioning (`/v1/`), timeout, rate limiting, 404 handler |
+
+### Security Fixes
+
+| Issue | Fix |
+|-------|-----|
+| No rate limiting on login | Added 5 attempts per 15 minutes limit |
+| Filename path traversal | Added `sanitizeFilename()` utility |
+| No input validation | Added Zod schemas for all endpoints |
+| Username in logs (PII) | Changed to `***` in success logs |
+| No API versioning | Added `/v1/` prefix to all routes |
+
+### Functional Fixes
+
+| Issue | Fix |
+|-------|-----|
+| Download returns JSON, not file | Now streams file directly to response |
+| Upload uses memory (OOM risk) | Changed to disk storage + streaming |
+| No pagination on list | Added `limit` and `offset` query params |
+| Health check doesn't check dependencies | Now checks DB and SFTP connectivity |
+| No refresh token flow | Added `/auth/refresh` endpoint |
+| No request timeout | Added 30-second timeout middleware |
+
+### API Changes
+
+#### New Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/v1/auth/refresh` | Refresh access token using refresh token |
+| POST | `/v1/auth/logout` | Logout (logs event) |
+
+#### Changed Endpoints
+
+| Old | New |
+|-----|-----|
+| `/auth/login` | `/v1/auth/login` |
+| `/files/list` | `/v1/files/list` |
+| `/files/download` | `/v1/files/download` |
+| `/files/upload` | `/v1/files/upload` |
+| `/files/mkdir` | `/v1/files/mkdir` |
+
+#### New Query Parameters
+
+| Endpoint | Param | Type | Default | Description |
+|----------|-------|------|---------|-------------|
+| `/v1/files/list` | `limit` | number | 100 | Max files to return |
+| `/v1/files/list` | `offset` | number | 0 | Pagination offset |
+
+#### Response Format
+
+All responses now follow standardized format:
+
+**Success:**
+```json
+{
+  "status": "success",
+  "requestId": "uuid",
+  "data": { ... }
+}
+```
+
+**Error:**
+```json
+{
+  "status": "error",
+  "requestId": "uuid",
+  "error": {
+    "message": "Error description",
+    "code": "ERROR_CODE",
+    "details": [...]
+  }
+}
+```
+
+---
+
 ## Pending Tasks
 
 | Task | Status | Priority | Notes |

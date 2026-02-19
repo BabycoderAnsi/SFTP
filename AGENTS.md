@@ -23,7 +23,9 @@ This document provides context for any AI assistant working on the SFTP Gateway 
 | SFTP Client | ssh2-sftp-client |
 | Authentication | JWT (jsonwebtoken) |
 | Password Hashing | bcryptjs |
-| File Uploads | multer |
+| File Uploads | multer (disk storage) |
+| Validation | Zod |
+| Rate Limiting | express-rate-limit |
 | Dev Runtime | ts-node-dev |
 | Build | TypeScript Compiler (tsc) |
 
@@ -50,22 +52,27 @@ SFTP/
     ├── prisma/
     │   └── schema.prisma        # Database schema
     ├── auth/                    # Authentication module
-    │   ├── auth.routes.ts       # Login endpoint
+    │   ├── auth.routes.ts       # Login, refresh, logout endpoints
     │   ├── auth.service.ts      # Login logic
     │   └── jwt.utils.ts         # JWT signing/verification
     ├── middlewares/             # Express middlewares
     │   ├── requireAuth.ts       # JWT authentication guard
-    │   ├── upload.middleware.ts # File upload handling
-    │   └── audit.ts             # Audit logging (DB + structured)
+    │   ├── upload.middleware.ts # File upload handling (disk storage)
+    │   ├── audit.ts             # Audit logging (DB + structured)
+    │   ├── validate.middleware.ts # Zod validation
+    │   ├── rateLimit.middleware.ts # Rate limiting
+    │   └── timeout.middleware.ts   # Request timeout
     └── src/
         ├── app.ts               # Express app setup
         ├── server.ts            # HTTPS server entry point
         ├── types/               # TypeScript type definitions
         │   ├── index.ts
         │   └── express.d.ts
+        ├── schemas/             # Zod validation schemas
+        │   └── index.ts
         ├── routes/              # API route handlers
         │   ├── files.route.ts   # File operations
-        │   └── health.route.ts  # Health check
+        │   └── health.route.ts  # Health check (DB + SFTP)
         ├── services/            # Business logic
         │   └── sftp.services.ts # SFTP client operations
         ├── repositories/        # Data access layer
@@ -80,7 +87,9 @@ SFTP/
         ├── resilience/          # Retry logic
         │   └── retry.ts
         └── utils/               # Utility functions
-            └── path.utils.ts    # Path traversal protection
+            ├── path.utils.ts    # Path traversal protection
+            ├── sanitize.utils.ts # Filename sanitization
+            └── response.utils.ts # Standardized API responses
 ```
 
 ---
@@ -110,14 +119,69 @@ import { something } from './local-file.js';
 
 ## API Endpoints
 
+All API endpoints are versioned under `/v1/` (except health check).
+
 | Method | Endpoint | Auth | Roles | Description |
 |--------|----------|------|-------|-------------|
-| POST | `/auth/login` | No | - | Authenticate and get JWT |
-| GET | `/health` | No | - | Health check |
-| GET | `/files/list` | Yes | READONLY, ADMIN | List files |
-| GET | `/files/download` | Yes | READONLY, ADMIN | Download file |
-| POST | `/files/upload` | Yes | WRITEONLY, ADMIN | Upload file |
-| POST | `/files/mkdir` | Yes | WRITEONLY, ADMIN | Create directory |
+| POST | `/v1/auth/login` | No | - | Authenticate and get access + refresh tokens |
+| POST | `/v1/auth/refresh` | No | - | Refresh access token using refresh token |
+| POST | `/v1/auth/logout` | Yes | Any | Logout (logs event) |
+| GET | `/health` | No | - | Health check (DB + SFTP status) |
+| GET | `/v1/files/list` | Yes | READONLY, ADMIN | List files (paginated) |
+| GET | `/v1/files/download` | Yes | READONLY, ADMIN | Download file (streamed) |
+| POST | `/v1/files/upload` | Yes | WRITEONLY, ADMIN | Upload file (streamed, max 10MB) |
+| POST | `/v1/files/mkdir` | Yes | WRITEONLY, ADMIN | Create directory |
+
+### Query Parameters
+
+| Endpoint | Param | Type | Default | Description |
+|----------|-------|------|---------|-------------|
+| `/v1/files/list` | `path` | string | `/` | Directory path to list |
+| `/v1/files/list` | `limit` | number | 100 | Max files to return (max 1000) |
+| `/v1/files/list` | `offset` | number | 0 | Pagination offset |
+| `/v1/files/download` | `path` | string | required | File path to download |
+| `/v1/files/upload` | `path` | string | `/` | Directory to upload to |
+
+### Request/Response Examples
+
+**Login:**
+```bash
+curl -k -X POST https://localhost:8443/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"password"}'
+```
+```json
+{
+  "status": "success",
+  "requestId": "uuid",
+  "data": {
+    "accessToken": "eyJ...",
+    "refreshToken": "eyJ...",
+    "expiresIn": 900,
+    "tokenType": "Bearer"
+  }
+}
+```
+
+**Refresh Token:**
+```bash
+curl -k -X POST https://localhost:8443/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"eyJ..."}'
+```
+
+**Error Response:**
+```json
+{
+  "status": "error",
+  "requestId": "uuid",
+  "error": {
+    "message": "Error description",
+    "code": "ERROR_CODE",
+    "details": [...]
+  }
+}
+```
 
 ---
 
@@ -265,12 +329,16 @@ log("info", "operation_completed", {
 ## Security Features
 
 1. **HTTPS/TLS** - All traffic encrypted
-2. **JWT Authentication** - Bearer tokens with 1-hour expiry
-3. **Role-Based Access Control** - READONLY, WRITEONLY, ADMIN
-4. **Path Traversal Protection** - `resolveSafePath()` in `path.utils.ts`
-5. **Helmet.js** - HTTP security headers
-6. **Request ID Tracking** - Unique ID per request
-7. **Audit Logging** - All operations logged to database AND structured logs
+2. **JWT Authentication** - Access tokens (15min) + Refresh tokens (7 days)
+3. **Rate Limiting** - Login: 5 attempts per 15 minutes; API: 100 requests per minute
+4. **Role-Based Access Control** - READONLY, WRITEONLY, ADMIN
+5. **Path Traversal Protection** - `resolveSafePath()` in `path.utils.ts`
+6. **Filename Sanitization** - `sanitizeFilename()` removes dangerous characters
+7. **Input Validation** - Zod schemas for all endpoints
+8. **Helmet.js** - HTTP security headers
+9. **Request ID Tracking** - Unique ID per request
+10. **Request Timeout** - 30-second timeout on all requests
+11. **Audit Logging** - All operations logged to database AND structured logs
 
 ---
 

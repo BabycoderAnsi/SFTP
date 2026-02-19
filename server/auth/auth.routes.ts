@@ -1,51 +1,89 @@
-import { Router, Request, Response } from "express";
-import { loginUser } from './auth.service';
-import { LoginRequest } from '../src/types/index';
+import { Router, Request, Response, NextFunction } from "express";
+import { loginUser, refreshAccessToken } from './auth.service';
 import { log } from '../src/logging/logging';
+import { successResponse, errorResponse } from '../src/utils/response.utils';
+import { validateBody } from '../middlewares/validate.middleware';
+import { loginRateLimiter } from '../middlewares/rateLimit.middleware';
+import { loginSchema, refreshTokenSchema } from '../src/schemas';
+import { requireAuth } from '../middlewares/requireAuth';
 
 const router = Router();
 
 router.post(
   "/login",
-  async (req: Request<object, unknown, LoginRequest>, res: Response) => {
-    const { username, password } = req.body;
-    const requestId = req.requestId;
-
-    if (!username || !password) {
-      log("warn", "login_failed", {
-        requestId,
-        reason: "missing_credentials",
-        username: username || "not_provided",
-      });
-      res.status(400).json({ error: "Username and password required" });
-      return;
-    }
-
-    log("info", "login_attempt", { requestId, username });
-
+  loginRateLimiter,
+  validateBody(loginSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const token = await loginUser(username, password);
+      const { username, password } = req.body;
+      const requestId = req.requestId;
 
-      log("info", "login_success", { requestId, username });
-      res.json({ token });
+      log("info", "login_attempt", { requestId, username: "***" });
+
+      const { accessToken, refreshToken } = await loginUser(username, password);
+
+      log("info", "login_success", { requestId, username: "***" });
+
+      successResponse(res, {
+        accessToken,
+        refreshToken,
+        expiresIn: 900,
+        tokenType: "Bearer",
+      }, requestId);
     } catch (err) {
       if (err instanceof Error && err.message === "INVALID_CREDENTIALS") {
         log("warn", "login_failed", {
-          requestId,
-          username,
+          requestId: req.requestId,
           reason: "invalid_credentials",
         });
-        res.status(401).json({ error: "Invalid username or password" });
+        errorResponse(res, "Invalid username or password", req.requestId, 401, "INVALID_CREDENTIALS");
         return;
       }
 
       log("error", "login_error", {
-        requestId,
-        username,
+        requestId: req.requestId,
         error: err instanceof Error ? err.message : String(err),
       });
-      res.status(500).json({ error: "Internal server error" });
+      next(err);
     }
+  }
+);
+
+router.post(
+  "/refresh",
+  validateBody(refreshTokenSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { refreshToken } = req.body;
+      const requestId = req.requestId;
+
+      log("info", "token_refresh_attempt", { requestId });
+
+      const { accessToken } = await refreshAccessToken(refreshToken);
+
+      log("info", "token_refresh_success", { requestId });
+
+      successResponse(res, {
+        accessToken,
+        expiresIn: 900,
+        tokenType: "Bearer",
+      }, requestId);
+    } catch (err) {
+      log("warn", "token_refresh_failed", {
+        requestId: req.requestId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      errorResponse(res, "Invalid or expired refresh token", req.requestId, 401, "INVALID_REFRESH_TOKEN");
+    }
+  }
+);
+
+router.post(
+  "/logout",
+  requireAuth(),
+  async (req: Request, res: Response) => {
+    log("info", "logout", { requestId: req.requestId, user: "***" });
+    successResponse(res, { message: "Logged out successfully" }, req.requestId);
   }
 );
 

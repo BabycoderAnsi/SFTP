@@ -1,6 +1,7 @@
 import SftpClient from "ssh2-sftp-client";
 import { retry } from '../resilience/retry';
 import { log } from '../logging/logging';
+import { createReadStream } from 'fs';
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -42,16 +43,18 @@ export async function withSftpClient<T>(
   }, MAX_RETRIES);
 }
 
-export async function uploadFile(
+export async function uploadFileStream(
   sftp: SftpClient,
   remotePath: string,
-  buffer: Buffer
-): Promise<string> {
+  localPath: string
+): Promise<void> {
   try {
-    log("debug", "sftp_upload_start", { remotePath, size: buffer.length });
-    const result = await sftp.put(buffer, remotePath);
+    log("debug", "sftp_upload_start", { remotePath, localPath });
+    
+    const readStream = createReadStream(localPath);
+    await sftp.put(readStream, remotePath);
+    
     log("debug", "sftp_upload_success", { remotePath });
-    return result;
   } catch (err) {
     log("error", "sftp_upload_failed", {
       remotePath,
