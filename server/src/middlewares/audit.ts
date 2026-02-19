@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { log } from "../logging/logging.js";
+import { log } from '../logging/logging';
 
 export function auditMiddleware(action: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
