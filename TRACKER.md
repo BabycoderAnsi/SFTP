@@ -55,6 +55,78 @@ This document tracks all changes, fixes, and improvements made to the SFTP Gatew
 
 ---
 
+## [2026-02-19] CommonJS Module System Conversion (Atlas Pattern)
+
+### Issues Fixed
+
+| # | Issue | Location | Fix Applied |
+|---|-------|----------|-------------|
+| 1 | ES Modules (`"type": "module"`) caused compatibility issues | server/package.json | Removed `"type": "module"` to use CommonJS |
+| 2 | `tsconfig.json` used `NodeNext` module resolution | server/tsconfig.json | Changed to `module: "commonjs"`, `moduleResolution: "node"` |
+| 3 | `emitDeclarationOnly` and `allowImportingTsExtensions` prevented proper compilation | server/tsconfig.json | Removed both options |
+| 4 | All imports required `.ts` or `.js` extensions (ES Module requirement) | All *.ts files | Removed all file extensions from local imports |
+| 5 | No clean build process | server/package.json | Added `rimraf` to clean dist before build |
+| 6 | Dev runtime used `tsx` (ES Module focused) | server/package.json | Changed to `ts-node-dev` for CommonJS support |
+| 7 | Development branch had SSL config not in main | server/src/db/prisma.ts | Merged SSL configuration from development |
+
+### Files Modified
+
+- `server/tsconfig.json` - Changed module system to CommonJS
+- `server/package.json` - Removed type:module, updated scripts, added dependencies
+- `server/auth/auth.routes.ts` - Fixed imports
+- `server/auth/auth.service.ts` - Fixed imports
+- `server/auth/jwt.utils.ts` - Fixed imports
+- `server/middlewares/audit.ts` - Fixed imports
+- `server/middlewares/requireAuth.ts` - Fixed imports
+- `server/src/app.ts` - Fixed imports
+- `server/src/db/prisma.ts` - Fixed imports, SSL config added
+- `server/src/logging/logging.ts` - Fixed imports
+- `server/src/middlewares/audit.ts` - Fixed imports
+- `server/src/repositories/audit.repo.ts` - Fixed imports
+- `server/src/repositories/user.repo.ts` - Fixed imports
+- `server/src/routes/files.route.ts` - Fixed imports
+- `server/src/server.ts` - Fixed imports
+- `server/src/services/sftp.services.ts` - Fixed imports
+- `server/src/types/express.d.ts` - Fixed imports
+
+### New Dependencies Added
+
+- `rimraf` - Cross-platform rm -rf for clean builds
+- `ts-node-dev` - TypeScript development runtime with hot reload
+
+### Configuration Changes
+
+**tsconfig.json:**
+```json
+{
+  "compilerOptions": {
+    "module": "commonjs",        // Changed from NodeNext
+    "moduleResolution": "node",  // Changed from NodeNext
+    "baseUrl": "."               // Added for cleaner imports
+    // Removed: emitDeclarationOnly, allowImportingTsExtensions
+  }
+}
+```
+
+**package.json scripts:**
+```json
+{
+  "build": "rimraf dist && tsc && cp -r src/generated dist/src/",
+  "start": "node dist/src/server.js",
+  "start:dev": "ts-node-dev --respawn --transpile-only src/server.ts"
+}
+```
+
+### Result
+
+- Build and start scripts work correctly
+- Server runs on port 8443
+- Health endpoint returns: `{"status":"ok","server":"SFTP Gateway"}`
+- Project now follows Atlas pattern for TypeScript configuration
+- Development branch merged into main with all fixes
+
+---
+
 ## Pending Tasks
 
 | Task | Status | Priority | Notes |
