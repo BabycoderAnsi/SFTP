@@ -1,13 +1,13 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { auditMiddleware } from "../middlewares/audit.ts";
+import { auditMiddleware } from "../middlewares/audit.js";
 import {
   withSftpClient,
   uploadFile,
   createFolder,
-} from "../services/sftp.services.ts";
-import { resolveSafePath } from "../utils/path.utils.ts";
-import { requireAuth } from "../../middlewares/requireAuth.ts";
-import { upload } from "../../middlewares/upload.middleware.ts";
+} from "../services/sftp.services.js";
+import { resolveSafePath } from "../utils/path.utils.js";
+import { requireAuth } from "../../middlewares/requireAuth.js";
+import { upload } from "../../middlewares/upload.middleware.js";
 
 const router = Router();
 

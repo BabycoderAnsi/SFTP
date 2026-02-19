@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
-import { loginUser } from "./auth.service.ts";
-import { LoginRequest } from "../src/types/index.ts";
+import { loginUser } from "./auth.service.js";
+import { LoginRequest } from "../src/types/index.js";
 
 const router = Router();
 

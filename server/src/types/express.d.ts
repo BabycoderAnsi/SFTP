@@ -1,4 +1,4 @@
-import { JwtPayload } from "./index.ts";
+import { JwtPayload } from "./index.js";
 
 declare global {
   namespace Express {

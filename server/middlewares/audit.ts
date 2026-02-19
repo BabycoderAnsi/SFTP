@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { writeAuditLog } from "../src/repositories/audit.repo.ts";
+import { writeAuditLog } from "../src/repositories/audit.repo.js";
 
 export function audit(action: string) {
   return (req: Request, res: Response, next: NextFunction): void => {

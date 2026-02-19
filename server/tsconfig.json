@@ -15,9 +15,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "noEmit": false,
-    "allowSyntheticDefaultImports": true,
-    "emitDeclarationOnly": true,
-    "allowImportingTsExtensions": true
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src/**/*", "auth/**/*", "middlewares/**/*"],
   "exclude": ["node_modules", "dist", "src/generated"]

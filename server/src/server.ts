@@ -1,6 +1,6 @@
 import https from "https";
 import fs from "fs";
-import app from "./app.ts";
+import app from "./app.js";
 import dotenv from "dotenv";
 
 dotenv.config();
