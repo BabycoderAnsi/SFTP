@@ -1,10 +1,16 @@
 import bcrypt from "bcryptjs";
-import { findUser } from '../src/repositories/user.repo';
+import { findUser, createUser, findUserByEmail } from '../src/repositories/user.repo';
 import { signAccessToken, signRefreshToken } from './jwt.utils';
+import { UserStatus } from '../src/generated/prisma';
 
 export interface TokenPair {
   accessToken: string;
   refreshToken: string;
+}
+
+export interface RegisterResult {
+  username: string;
+  message: string;
 }
 
 export async function loginUser(
@@ -15,6 +21,14 @@ export async function loginUser(
 
   if (!user) {
     throw new Error("INVALID_CREDENTIALS");
+  }
+
+  if (user.status === UserStatus.PENDING) {
+    throw new Error("ACCOUNT_PENDING");
+  }
+
+  if (user.status === UserStatus.DISABLED) {
+    throw new Error("ACCOUNT_DISABLED");
   }
 
   const valid = await bcrypt.compare(password, user.password);
@@ -31,6 +45,35 @@ export async function loginUser(
   return {
     accessToken: signAccessToken(payload),
     refreshToken: signRefreshToken(payload),
+  };
+}
+
+export async function registerUser(
+  username: string,
+  email: string,
+  password: string
+): Promise<RegisterResult> {
+  const existingUser = await findUser(username);
+  if (existingUser) {
+    throw new Error("USERNAME_EXISTS");
+  }
+
+  const existingEmail = await findUserByEmail(email);
+  if (existingEmail) {
+    throw new Error("EMAIL_EXISTS");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  await createUser({
+    username,
+    email,
+    password: hashedPassword,
+  });
+
+  return {
+    username,
+    message: "Account created. Awaiting admin approval.",
   };
 }
 

@@ -19,7 +19,7 @@ const router = Router();
 
 router.get(
   "/list",
-  requireAuth(["READONLY", "ADMIN"]),
+  requireAuth(["READ_ONLY", "ADMIN"]),
   auditMiddleware("LIST"),
   validateQuery(listQuerySchema),
   async (
@@ -28,9 +28,7 @@ router.get(
     next: NextFunction
   ) => {
     try {
-      const queryPath = String(req.query.path || '/');
-      const limit = Number(req.query.limit) || 100;
-      const offset = Number(req.query.offset) || 0;
+      const { path: queryPath, limit, offset } = (req as any).validatedQuery;
       const safePath = resolveSafePath(queryPath);
 
       const allFiles = await withSftpClient((sftp) => {
@@ -53,7 +51,7 @@ router.get(
 
 router.get(
   "/download",
-  requireAuth(["READONLY", "ADMIN"]),
+  requireAuth(["READ_ONLY", "ADMIN"]),
   auditMiddleware("DOWNLOAD"),
   validateQuery(downloadQuerySchema),
   async (
@@ -62,7 +60,7 @@ router.get(
     next: NextFunction
   ) => {
     try {
-      const queryPath = String(req.query.path || '');
+      const { path: queryPath } = (req as any).validatedQuery;
       const safePath = resolveSafePath(queryPath);
       const filename = path.basename(safePath);
 
@@ -99,7 +97,7 @@ router.get(
 
 router.post(
   "/upload",
-  requireAuth(["WRITEONLY", "ADMIN"]),
+  requireAuth(["READ_WRITE", "ADMIN"]),
   upload.single("file"),
   handleUploadError,
   validateQuery(uploadQuerySchema),
@@ -116,7 +114,7 @@ router.post(
         return;
       }
 
-      const { path: queryPath } = req.query as { path: string };
+      const { path: queryPath } = (req as any).validatedQuery;
       const safePath = resolveSafePath(queryPath);
       const sanitizedFilename = sanitizeFilename(req.file.originalname);
       const remotePath = `${safePath}/${sanitizedFilename}`;
@@ -154,7 +152,7 @@ router.post(
 
 router.post(
   "/mkdir",
-  requireAuth(["WRITEONLY", "ADMIN"]),
+  requireAuth(["READ_WRITE", "ADMIN"]),
   auditMiddleware("MKDIR"),
   validateBody(mkdirBodySchema),
   async (

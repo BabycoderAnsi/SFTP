@@ -40,8 +40,18 @@ SFTP/
 ├── TRACKER.md                   # Change log and tracking
 ├── docker-compose.yaml          # Docker orchestration
 ├── sftp-server/                 # SFTP server container
-│   ├── Dockerfile
-│   └── sshd_config
+│   ├── Dockerfile               # Alpine-based multi-tenant SFTP
+│   ├── entrypoint.sh            # Dynamic user creation script
+│   ├── sshd_config              # Hardened SSH configuration
+│   └── logrotate.conf           # Log rotation config
+├── sftp-config/                 # SFTP configuration (mounted)
+│   └── users.json               # User definitions (JSON)
+├── sftp-data/                   # SFTP persistent data (mounted)
+│   ├── data/                    # User files (per-user directories)
+│   ├── keys/                    # SSH host keys
+│   └── logs/                    # SFTP audit logs
+├── scripts/                     # Utility scripts
+│   └── generate-sftp-password.sh # Password hash generator
 └── server/                      # Main Node.js application
     ├── package.json
     ├── tsconfig.json
@@ -50,10 +60,12 @@ SFTP/
     │   ├── cert.pem
     │   └── key.pem
     ├── prisma/
-    │   └── schema.prisma        # Database schema
+    │   ├── schema.prisma        # Database schema
+    │   └── seed.ts              # Admin user seed script
     ├── auth/                    # Authentication module
-    │   ├── auth.routes.ts       # Login, refresh, logout endpoints
-    │   ├── auth.service.ts      # Login logic
+    │   ├── auth.routes.ts       # Login, refresh, logout, register endpoints
+    │   ├── auth.service.ts      # Login and registration logic
+    │   ├── admin.routes.ts      # Admin user management endpoints
     │   └── jwt.utils.ts         # JWT signing/verification
     ├── middlewares/             # Express middlewares
     │   ├── requireAuth.ts       # JWT authentication guard
@@ -123,14 +135,18 @@ All API endpoints are versioned under `/v1/` (except health check).
 
 | Method | Endpoint | Auth | Roles | Description |
 |--------|----------|------|-------|-------------|
+| POST | `/v1/auth/register` | No | - | Register new user (PENDING status) |
 | POST | `/v1/auth/login` | No | - | Authenticate and get access + refresh tokens |
 | POST | `/v1/auth/refresh` | No | - | Refresh access token using refresh token |
 | POST | `/v1/auth/logout` | Yes | Any | Logout (logs event) |
 | GET | `/health` | No | - | Health check (DB + SFTP status) |
-| GET | `/v1/files/list` | Yes | READONLY, ADMIN | List files (paginated) |
-| GET | `/v1/files/download` | Yes | READONLY, ADMIN | Download file (streamed) |
-| POST | `/v1/files/upload` | Yes | WRITEONLY, ADMIN | Upload file (streamed, max 10MB) |
-| POST | `/v1/files/mkdir` | Yes | WRITEONLY, ADMIN | Create directory |
+| GET | `/v1/files/list` | Yes | READ_ONLY, ADMIN | List files (paginated) |
+| GET | `/v1/files/download` | Yes | READ_ONLY, ADMIN | Download file (streamed) |
+| POST | `/v1/files/upload` | Yes | READ_WRITE, ADMIN | Upload file (streamed, max 10MB) |
+| POST | `/v1/files/mkdir` | Yes | READ_WRITE, ADMIN | Create directory |
+| GET | `/v1/admin/users` | Yes | ADMIN | List users (paginated, filterable) |
+| PATCH | `/v1/admin/users/:id/status` | Yes | ADMIN | Update user status (PENDING/ACTIVE/DISABLED) |
+| PATCH | `/v1/admin/users/:id/role` | Yes | ADMIN | Update user role |
 
 ### Query Parameters
 
@@ -141,8 +157,29 @@ All API endpoints are versioned under `/v1/` (except health check).
 | `/v1/files/list` | `offset` | number | 0 | Pagination offset |
 | `/v1/files/download` | `path` | string | required | File path to download |
 | `/v1/files/upload` | `path` | string | `/` | Directory to upload to |
+| `/v1/admin/users` | `status` | string | - | Filter by status (PENDING/ACTIVE/DISABLED) |
+| `/v1/admin/users` | `role` | string | - | Filter by role (READ_ONLY/READ_WRITE/ADMIN) |
+| `/v1/admin/users` | `limit` | number | 50 | Max users to return (max 100) |
+| `/v1/admin/users` | `offset` | number | 0 | Pagination offset |
 
 ### Request/Response Examples
+
+**Register:**
+```bash
+curl -k -X POST https://localhost:8443/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"newuser","email":"user@example.com","password":"Secure@123"}'
+```
+```json
+{
+  "status": "success",
+  "requestId": "uuid",
+  "data": {
+    "username": "newuser",
+    "message": "Account created. Awaiting admin approval."
+  }
+}
+```
 
 **Login:**
 ```bash
@@ -189,9 +226,19 @@ curl -k -X POST https://localhost:8443/v1/auth/refresh \
 
 | Role | Permissions |
 |------|-------------|
-| READONLY | List, Download |
-| WRITEONLY | Upload, Create Directory |
-| ADMIN | All operations |
+| READ_ONLY | List files, Download files |
+| READ_WRITE | Upload files, Create directories |
+| ADMIN | All operations + User management |
+
+---
+
+## User Status
+
+| Status | Description |
+|--------|-------------|
+| PENDING | New registration, awaiting admin approval |
+| ACTIVE | Can login and use the system |
+| DISABLED | Account disabled, cannot login |
 
 ---
 
@@ -200,11 +247,32 @@ curl -k -X POST https://localhost:8443/v1/auth/refresh \
 ### User
 ```prisma
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String   // bcrypt hashed
-  role      String   // READONLY | WRITEONLY | ADMIN
-  createdAt DateTime @default(now())
+  id        String     @id @default(uuid())
+  username  String     @unique
+  email     String     @unique
+  password  String     // bcrypt hashed
+  role      Role       @default(READ_ONLY)
+  status    UserStatus @default(PENDING)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([status])
+  @@index([role])
+}
+```
+
+### Enums
+```prisma
+enum Role {
+  READ_ONLY   // List, Download
+  READ_WRITE  // Upload, Mkdir
+  ADMIN       // All + User Management
+}
+
+enum UserStatus {
+  PENDING   // Awaiting approval
+  ACTIVE    // Can use system
+  DISABLED  // Account disabled
 }
 ```
 
@@ -244,6 +312,12 @@ npx prisma migrate dev --name <migration_name>
 
 # Generate Prisma client
 npx prisma generate
+
+# Seed admin user (default: admin / admin@example.com / Admin@123456)
+npx prisma db seed
+
+# Seed with custom credentials
+ADMIN_USERNAME=sysadmin ADMIN_EMAIL=admin@company.com ADMIN_PASSWORD=Secure!123 npx prisma db seed
 ```
 
 ---
@@ -331,14 +405,16 @@ log("info", "operation_completed", {
 1. **HTTPS/TLS** - All traffic encrypted
 2. **JWT Authentication** - Access tokens (15min) + Refresh tokens (7 days)
 3. **Rate Limiting** - Login: 5 attempts per 15 minutes; API: 100 requests per minute
-4. **Role-Based Access Control** - READONLY, WRITEONLY, ADMIN
-5. **Path Traversal Protection** - `resolveSafePath()` in `path.utils.ts`
-6. **Filename Sanitization** - `sanitizeFilename()` removes dangerous characters
-7. **Input Validation** - Zod schemas for all endpoints
-8. **Helmet.js** - HTTP security headers
-9. **Request ID Tracking** - Unique ID per request
-10. **Request Timeout** - 30-second timeout on all requests
-11. **Audit Logging** - All operations logged to database AND structured logs
+4. **Role-Based Access Control** - READ_ONLY, READ_WRITE, ADMIN
+5. **User Status Management** - PENDING, ACTIVE, DISABLED states
+6. **Path Traversal Protection** - `resolveSafePath()` in `path.utils.ts`
+7. **Filename Sanitization** - `sanitizeFilename()` removes dangerous characters
+8. **Input Validation** - Zod schemas for all endpoints
+9. **Strong Password Policy** - 8+ chars, uppercase, lowercase, number, special char
+10. **Helmet.js** - HTTP security headers
+11. **Request ID Tracking** - Unique ID per request
+12. **Request Timeout** - 30-second timeout on all requests
+13. **Audit Logging** - All operations logged to database AND structured logs
 
 ---
 
@@ -413,7 +489,7 @@ Both happen automatically when using the middleware:
 
 ```typescript
 router.get("/list", 
-  requireAuth(["READONLY", "ADMIN"]),
+  requireAuth(["READ_ONLY", "ADMIN"]),
   auditMiddleware("LIST"),  // Logs + writes to DB
   handler
 );

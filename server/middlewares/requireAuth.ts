@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from '../auth/jwt.utils';
+import { findUserById } from '../src/repositories/user.repo';
+import { UserStatus } from '../src/generated/prisma';
 import { log } from '../src/logging/logging';
 
 export function requireAuth(requiredRoles: string[] = []) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const authHeader = req.headers.authorization;
 
@@ -20,21 +22,54 @@ export function requireAuth(requiredRoles: string[] = []) {
       const token = authHeader.split(" ")[1];
       const payload = verifyToken(token);
 
+      const user = await findUserById(payload.id);
+
+      if (!user) {
+        log("warn", "auth_user_not_found", {
+          requestId: req.requestId,
+          userId: payload.id,
+        });
+        res.status(401).json({ error: "User not found" });
+        return;
+      }
+
+      if (user.status === UserStatus.PENDING) {
+        log("warn", "auth_account_pending", {
+          requestId: req.requestId,
+          user: payload.sub,
+        });
+        res.status(403).json({ error: "Account awaiting admin approval" });
+        return;
+      }
+
+      if (user.status === UserStatus.DISABLED) {
+        log("warn", "auth_account_disabled", {
+          requestId: req.requestId,
+          user: payload.sub,
+        });
+        res.status(403).json({ error: "Account has been disabled" });
+        return;
+      }
+
       if (
         requiredRoles.length &&
-        (!payload.role || !requiredRoles.includes(payload.role))
+        (!user.role || !requiredRoles.includes(user.role))
       ) {
         log("warn", "auth_forbidden", {
           requestId: req.requestId,
           user: payload.sub,
-          actualRole: payload.role,
+          actualRole: user.role,
           requiredRoles,
           path: req.path,
         });
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      req.user = payload;
+
+      req.user = {
+        ...payload,
+        role: user.role,
+      };
       next();
     } catch (err) {
       log("warn", "auth_invalid_token", {

@@ -3,6 +3,31 @@ version: "3.8"
 services:
   sftp:
     build: ./sftp-server
+    container_name: sftp-server
     ports:
       - "2222:22"
+    volumes:
+      - ./sftp-data/data:/sftp/data
+      - ./sftp-data/keys:/sftp/keys
+      - ./sftp-data/logs:/sftp/logs
+      - ./sftp-config/users.json:/sftp/config/users.json:ro
+    environment:
+      - TZ=UTC
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    networks:
+      - sftp-network
 
+networks:
+  sftp-network:
+    driver: bridge

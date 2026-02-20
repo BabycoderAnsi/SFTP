@@ -1,0 +1,40 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "password": "$6$rounds=4096$randomsalt$YjQ5NzRiOTY2ZTdhNzY4OWFlMjA0MTg2YjI5OTM1MmI3YzFiZTQxMjBhNjA0YzY1NzY5ZTE4YWZjN2NmZTNmMg",
+      "uid": 2001,
+      "directories": {
+        "inbound": "rw",
+        "outbound": "rw",
+        "archive": "rw"
+      }
+    },
+    {
+      "username": "client-a",
+      "password": "$6$rounds=4096$randomsalt$YjQ5NzRiOTY2ZTdhNzY4OWFlMjA0MTg2YjI5OTM1MmI3YzFiZTQxMjBhNjA0YzY1NzY5ZTE4YWZjN2NmZTNmMg",
+      "uid": 2002,
+      "directories": {
+        "inbound": "rw",
+        "outbound": "r"
+      }
+    },
+    {
+      "username": "client-b",
+      "password": "$6$rounds=4096$randomsalt$YjQ5NzRiOTY2ZTdhNzY4OWFlMjA0MTg2YjI5OTM1MmI3YzFiZTQxMjBhNjA0YzY1NzY5ZTE4YWZjN2NmZTNmMg",
+      "uid": 2003,
+      "directories": {
+        "inbound": "rw",
+        "outbound": "r"
+      }
+    }
+  ],
+  "global": {
+    "defaultShell": "/sbin/nologin",
+    "umask": "0077",
+    "maxSessions": 10,
+    "maxAuthTries": 3
+  },
+  "_comment": "Password hashes are SHA-512. Use scripts/generate-sftp-password.sh to generate new hashes.",
+  "_defaultPassword": "All sample users have password: ChangeMe@123"
+}

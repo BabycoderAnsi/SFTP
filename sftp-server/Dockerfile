@@ -1,17 +1,30 @@
-FROM ubuntu:22.04
+FROM alpine:3.19
 
-#install openssh-server
-RUN apt-get update && apt-get install -y openssh-server && mkdir /var/run/sshd
+LABEL maintainer="SFTP Gateway"
+LABEL description="Multi-tenant SFTP server with audit logging"
 
-#create a user for sftp service
-RUN useradd -m sftpuser && echo "sftpuser:password" | chpasswd
+RUN apk add --no-cache \
+    openssh \
+    shadow \
+    jq \
+    logrotate \
+    supercronic
 
-#create a upload directory
-RUN mkdir -p /home/sftpuser/upload && chown root:root /home/sftpuser && chmod 755 /home/sftpuser && chown -R sftpuser:sftpuser /home/sftpuser/upload
+RUN mkdir -p /sftp/data /sftp/keys /sftp/logs /sftp/config
 
-#SSH configuration
 COPY sshd_config /etc/ssh/sshd_config
+COPY entrypoint.sh /entrypoint.sh
+COPY logrotate.conf /etc/logrotate.d/sftp
 
-#expose port 22 for ssh
+RUN chmod +x /entrypoint.sh && \
+    chmod 644 /etc/ssh/sshd_config && \
+    chmod 644 /etc/logrotate.d/sftp
+
+RUN ssh-keygen -A 2>/dev/null || true
+
 EXPOSE 22
-CMD ["/usr/sbin/sshd", "-D"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD nc -z localhost 22 || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]

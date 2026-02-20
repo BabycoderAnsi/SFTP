@@ -1,6 +1,7 @@
 import express, { Application, Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import authRouter from '../auth/auth.routes';
+import adminRouter from '../auth/admin.routes';
 import healthRoute from './routes/health.route';
 import filesRouter from './routes/files.route';
 import { requestIdMiddleware } from './middlewares/requestId';
@@ -23,6 +24,7 @@ app.use(apiRateLimiter);
 
 app.use("/health", healthRoute);
 app.use("/v1/auth", authRouter);
+app.use("/v1/admin", adminRouter);
 app.use("/v1/files", filesRouter);
 
 app.use((req: Request, res: Response) => {

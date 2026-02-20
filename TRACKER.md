@@ -4,6 +4,253 @@ This document tracks all changes, fixes, and improvements made to the SFTP Gatew
 
 ---
 
+## [2026-02-20] Multi-Tenant SFTP Server with Audit Logging
+
+### Overview
+
+Completely redesigned the SFTP server from a simple single-user setup to a production-ready multi-tenant system with:
+- Configurable users via JSON file
+- Per-user directory isolation (chroot)
+- Persistent storage (files, keys, logs)
+- Structured audit logging
+- Security hardening
+
+### Architecture Changes
+
+**Before:**
+```
+sftp-server/
+├── Dockerfile         # Ubuntu + hardcoded user
+└── sshd_config        # Basic config
+```
+
+**After:**
+```
+sftp-server/
+├── Dockerfile         # Alpine-based, minimal footprint
+├── entrypoint.sh      # Dynamic user creation from config
+├── sshd_config        # Hardened security config
+└── logrotate.conf     # Log rotation
+
+sftp-config/
+└── users.json         # User definitions (mounted)
+
+sftp-data/             # Persistent volumes (mounted)
+├── data/              # User files
+├── keys/              # SSH host keys
+└── logs/              # Audit logs
+
+scripts/
+└── generate-sftp-password.sh  # Password hash utility
+```
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `sftp-server/Dockerfile` | Alpine-based image with health check |
+| `sftp-server/entrypoint.sh` | Dynamic user creation, SSH key management |
+| `sftp-server/sshd_config` | Hardened security configuration |
+| `sftp-server/logrotate.conf` | Log rotation configuration |
+| `sftp-config/users.json` | User configuration file |
+| `scripts/generate-sftp-password.sh` | Password hash generation utility |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `docker-compose.yaml` | Added volumes, health check, security options |
+
+### Features Added
+
+| Feature | Description |
+|---------|-------------|
+| **Multi-tenancy** | Each user gets isolated directory via chroot |
+| **Config-based users** | Users defined in `sftp-config/users.json` |
+| **Persistent storage** | Files, SSH keys, logs survive container restarts |
+| **Audit logging** | All SFTP operations logged to JSON |
+| **Security hardening** | Modern crypto, disabled forwarding, rate limiting |
+| **Health checks** | Docker health check for orchestration |
+| **Per-user permissions** | Read/write permissions per directory |
+
+### User Configuration Format
+
+```json
+{
+  "users": [
+    {
+      "username": "client-a",
+      "password": "$6$rounds=4096$...$hash",
+      "uid": 2002,
+      "directories": {
+        "inbound": "rw",
+        "outbound": "r"
+      }
+    }
+  ]
+}
+```
+
+### Directory Structure per User
+
+```
+/sftp/data/
+├── admin/
+│   ├── inbound/     # rw - others upload here
+│   ├── outbound/    # rw - files for distribution
+│   └── archive/     # rw - archived files
+├── client-a/
+│   ├── inbound/     # rw - client uploads
+│   └── outbound/    # r  - files for client
+└── client-b/
+    ├── inbound/
+    └── outbound/
+```
+
+### Security Improvements
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `PermitRootLogin` | no | Prevent root access |
+| `MaxAuthTries` | 3 | Brute force protection |
+| `AllowTcpForwarding` | no | Prevent tunneling |
+| `X11Forwarding` | no | Prevent GUI forwarding |
+| `PermitTTY` | no | Shell access denied |
+| `ChrootDirectory` | /sftp/data/%u | User isolation |
+| `ForceCommand` | internal-sftp | SFTP only |
+
+### Usage Commands
+
+```bash
+# Build and start SFTP server
+docker-compose up -d sftp
+
+# Generate password hash
+./scripts/generate-sftp-password.sh -p "MyPassword@123"
+
+# Update user password
+./scripts/generate-sftp-password.sh -p "MyPassword@123" -u client-a
+
+# List users
+./scripts/generate-sftp-password.sh -l
+
+# View audit logs
+tail -f sftp-data/logs/sftp-server.log | jq .
+```
+
+---
+
+## [2026-02-20] User Registration API with RBAC
+
+### Overview
+
+Implemented a complete user registration system with Role-Based Access Control (RBAC):
+- Public registration endpoint with strong password requirements
+- User status management (PENDING → ACTIVE → DISABLED)
+- Admin-only user management endpoints
+- Database-stored status checked on each authenticated request
+
+### Database Schema Changes
+
+#### New Fields
+| Table | Field | Type | Description |
+|-------|-------|------|-------------|
+| User | email | String (unique) | User email address |
+| User | status | UserStatus (enum) | PENDING, ACTIVE, DISABLED |
+| User | updatedAt | DateTime | Auto-updated timestamp |
+
+#### Updated Enums
+| Enum | Values |
+|------|--------|
+| Role | READ_ONLY, READ_WRITE, ADMIN |
+| UserStatus | PENDING, ACTIVE, DISABLED |
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `prisma/seed.ts` | Seed script to create initial admin user |
+| `auth/admin.routes.ts` | Admin user management endpoints |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `prisma/schema.prisma` | Added email field, ADMIN role, UserStatus enum, updatedAt, indexes |
+| `prisma.config.ts` | Added seed command configuration |
+| `package.json` | Added prisma.seed script, ts-node dependency |
+| `src/schemas/index.ts` | Added registerSchema, updateStatusSchema, updateRoleSchema, listUsersQuerySchema |
+| `src/repositories/user.repo.ts` | Added createUser, findUserByEmail, findUserById, listUsers, countUsers, updateUserStatus, updateUserRole |
+| `auth/auth.service.ts` | Added registerUser function, status checks in loginUser |
+| `auth/auth.routes.ts` | Added POST /register endpoint, enhanced login error handling for PENDING/DISABLED |
+| `middlewares/requireAuth.ts` | Now async, fetches user from DB, checks status (PENDING/DISABLED rejection) |
+| `src/routes/files.route.ts` | Updated role names to READ_ONLY, READ_WRITE (matching schema) |
+| `src/app.ts` | Added admin routes registration at /v1/admin |
+
+### New API Endpoints
+
+| Method | Endpoint | Auth | Roles | Description |
+|--------|----------|------|-------|-------------|
+| POST | `/v1/auth/register` | No | - | Register new user (PENDING status) |
+| GET | `/v1/admin/users` | Yes | ADMIN | List users (paginated, filterable) |
+| PATCH | `/v1/admin/users/:id/status` | Yes | ADMIN | Update user status |
+| PATCH | `/v1/admin/users/:id/role` | Yes | ADMIN | Update user role |
+
+### Registration Flow
+
+```
+POST /v1/auth/register
+├── Validate: username (3+ chars, alphanumeric+underscore), email, password (strong)
+├── Check username uniqueness → 409 if exists
+├── Check email uniqueness → 409 if exists
+├── Hash password with bcrypt (12 rounds)
+├── Create user: status=PENDING, role=READ_ONLY
+└── Return 201 { message: "Account created. Awaiting admin approval." }
+```
+
+### Password Requirements
+
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character (@$!%*?&#^)
+
+### Role Permissions
+
+| Role | Permissions |
+|------|-------------|
+| READ_ONLY | List files, Download files |
+| READ_WRITE | Upload files, Create directories |
+| ADMIN | All above + User management |
+
+### Status Checks
+
+- **PENDING**: Cannot login, cannot access API
+- **ACTIVE**: Can login, can access API based on role
+- **DISABLED**: Cannot login, cannot access API
+
+### Admin User Seeding
+
+```bash
+# Default credentials
+npx prisma db seed
+# Creates: admin / admin@example.com / Admin@123456
+
+# Custom credentials
+ADMIN_USERNAME=sysadmin ADMIN_EMAIL=admin@company.com ADMIN_PASSWORD=Secure!123 npx prisma db seed
+```
+
+### Security Measures
+
+1. Admins cannot modify their own status or role
+2. Passwords hashed with bcrypt (12 rounds)
+3. Status checked on every authenticated request (DB lookup)
+4. Strong password validation via Zod schema
+5. Audit logging for all admin actions
+
+---
+
 ## [2026-02-19] Comprehensive Logging Implementation
 
 ### Overview

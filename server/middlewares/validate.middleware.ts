@@ -69,7 +69,7 @@ export function validateQuery(schema: z.ZodSchema) {
       return;
     }
     
-    req.query = result.data as typeof req.query;
+    (req as any).validatedQuery = result.data;
     next();
   };
 }
