@@ -4,6 +4,119 @@ This document tracks all changes, fixes, and improvements made to the SFTP Gatew
 
 ---
 
+## [2026-02-20] SFTP Gateway GUI Console
+
+### Overview
+
+Built a complete Next.js dashboard application for managing the SFTP Gateway:
+- JWT-based authentication with role-based access
+- File management (browse, upload, download, create folders)
+- User management (list, approve, disable, change roles)
+- Real-time audit logs via Server-Sent Events
+- Multi-tenant org switching (admin)
+
+### Tech Stack
+
+| Category | Technology |
+|----------|------------|
+| Framework | Next.js 14 (App Router) |
+| Styling | Tailwind CSS + shadcn/ui |
+| State | Zustand |
+| Data Fetching | Axios with interceptors |
+| Forms | React Hook Form + Zod |
+| Real-time | Server-Sent Events |
+
+### Project Structure
+
+```
+sftp-gui/
+├── app/
+│   ├── (auth)/login/         # Login page
+│   ├── (dashboard)/          # Protected dashboard pages
+│   │   ├── page.tsx          # Dashboard home
+│   │   ├── files/            # File browser
+│   │   ├── users/            # User management
+│   │   ├── logs/             # Real-time logs
+│   │   └── settings/         # Settings page
+│   └── layout.tsx
+├── components/
+│   ├── ui/                   # shadcn/ui components
+│   ├── layout/               # Sidebar, header, guards
+│   ├── files/                # File list, upload
+│   ├── users/                # User table, role/status selects
+│   └── logs/                 # Log stream viewer
+├── hooks/                    # useAuth, useFiles, useSSE
+├── lib/                      # API client, utils, constants
+├── stores/                   # Zustand auth/org stores
+└── types/                    # TypeScript definitions
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Authentication** | JWT login with token refresh |
+| **Role-Based UI** | Pages/actions hidden based on role |
+| **File Browser** | Navigate folders, upload, download |
+| **User Management** | Admin can approve/disable users |
+| **Real-time Logs** | SSE stream of audit events |
+| **Org Switcher** | Admin can switch between orgs |
+
+### Backend Changes
+
+#### New Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/v1/auth/me` | Get current user profile |
+| GET | `/v1/logs/stream` | SSE for real-time logs |
+| GET | `/v1/admin/organizations` | List orgs for switcher |
+
+#### CORS Support
+
+Added CORS middleware to allow requests from `http://localhost:3000`.
+
+### Files Created (GUI)
+
+| File | Purpose |
+|------|---------|
+| `sftp-gui/*` | Complete Next.js application |
+| `server/src/routes/logs.route.ts` | SSE log streaming endpoint |
+
+### Files Modified (Backend)
+
+| File | Changes |
+|------|---------|
+| `server/src/app.ts` | Added CORS, logs route |
+| `server/auth/auth.routes.ts` | Added `/me` endpoint |
+| `server/auth/admin.routes.ts` | Added `/organizations` endpoint |
+| `server/middlewares/requireAuth.ts` | Include email, status in user payload |
+| `server/src/types/index.ts` | Extended JwtPayload interface |
+
+### RBAC Matrix
+
+| Page/Action | READ_ONLY | READ_WRITE | ADMIN |
+|-------------|-----------|------------|-------|
+| Dashboard | ❌ | ✅ | ✅ |
+| Files - List/Download | ✅ | ✅ | ✅ |
+| Files - Upload/Mkdir | ❌ | ✅ | ✅ |
+| Users | ❌ | ❌ | ✅ |
+| Logs | ✅ | ✅ | ✅ |
+| Settings | ❌ | ❌ | ✅ |
+| Org Switcher | ❌ | ❌ | ✅ |
+
+### Running the GUI
+
+```bash
+cd sftp-gui
+npm install
+npm run dev
+```
+
+Open http://localhost:3000
+
+---
+
 ## [2026-02-20] Multi-Tenant SFTP Server with Audit Logging
 
 ### Overview

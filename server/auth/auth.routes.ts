@@ -140,4 +140,13 @@ router.post(
   }
 );
 
+router.get(
+  "/me",
+  requireAuth(),
+  async (req: Request, res: Response) => {
+    const requestId = req.requestId;
+    successResponse(res, { user: req.user }, requestId);
+  }
+);
+
 export default router;

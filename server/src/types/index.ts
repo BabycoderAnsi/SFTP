@@ -2,6 +2,10 @@ export interface JwtPayload {
   sub: string;
   role: string;
   id: string;
+  email?: string;
+  status?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
   iat?: number;
   exp?: number;
   iss?: string;

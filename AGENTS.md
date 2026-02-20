@@ -28,6 +28,7 @@ This document provides context for any AI assistant working on the SFTP Gateway 
 | Rate Limiting | express-rate-limit |
 | Dev Runtime | ts-node-dev |
 | Build | TypeScript Compiler (tsc) |
+| **GUI** | Next.js 14 + Tailwind + shadcn/ui |
 
 ---
 
@@ -52,6 +53,13 @@ SFTP/
 │   └── logs/                    # SFTP audit logs
 ├── scripts/                     # Utility scripts
 │   └── generate-sftp-password.sh # Password hash generator
+├── sftp-gui/                    # Next.js dashboard application
+│   ├── app/                     # App router pages
+│   ├── components/              # React components
+│   ├── hooks/                   # Custom hooks
+│   ├── lib/                     # Utilities and API client
+│   ├── stores/                  # Zustand state stores
+│   └── types/                   # TypeScript definitions
 └── server/                      # Main Node.js application
     ├── package.json
     ├── tsconfig.json
@@ -139,14 +147,17 @@ All API endpoints are versioned under `/v1/` (except health check).
 | POST | `/v1/auth/login` | No | - | Authenticate and get access + refresh tokens |
 | POST | `/v1/auth/refresh` | No | - | Refresh access token using refresh token |
 | POST | `/v1/auth/logout` | Yes | Any | Logout (logs event) |
+| GET | `/v1/auth/me` | Yes | Any | Get current user profile |
 | GET | `/health` | No | - | Health check (DB + SFTP status) |
-| GET | `/v1/files/list` | Yes | READ_ONLY, ADMIN | List files (paginated) |
-| GET | `/v1/files/download` | Yes | READ_ONLY, ADMIN | Download file (streamed) |
+| GET | `/v1/files/list` | Yes | READ_ONLY, READ_WRITE, ADMIN | List files (paginated) |
+| GET | `/v1/files/download` | Yes | READ_ONLY, READ_WRITE, ADMIN | Download file (streamed) |
 | POST | `/v1/files/upload` | Yes | READ_WRITE, ADMIN | Upload file (streamed, max 10MB) |
 | POST | `/v1/files/mkdir` | Yes | READ_WRITE, ADMIN | Create directory |
 | GET | `/v1/admin/users` | Yes | ADMIN | List users (paginated, filterable) |
 | PATCH | `/v1/admin/users/:id/status` | Yes | ADMIN | Update user status (PENDING/ACTIVE/DISABLED) |
 | PATCH | `/v1/admin/users/:id/role` | Yes | ADMIN | Update user role |
+| GET | `/v1/admin/organizations` | Yes | ADMIN | List organizations for GUI switcher |
+| GET | `/v1/logs/stream` | Yes | Any | SSE stream of audit logs |
 
 ### Query Parameters
 
@@ -295,7 +306,7 @@ model AuditLog {
 ## Common Commands
 
 ```bash
-# Install dependencies
+# === Server (API) ===
 cd server && npm install
 
 # Development (with hot reload)
@@ -318,6 +329,30 @@ npx prisma db seed
 
 # Seed with custom credentials
 ADMIN_USERNAME=sysadmin ADMIN_EMAIL=admin@company.com ADMIN_PASSWORD=Secure!123 npx prisma db seed
+
+# === GUI (Next.js) ===
+cd sftp-gui && npm install
+
+# Development
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+
+# === SFTP Server (Docker) ===
+cd /Users/riri/Desktop/SFTP
+
+# Build and start
+docker-compose up -d sftp
+
+# View logs
+docker-compose logs -f sftp
+
+# Generate password hash
+./scripts/generate-sftp-password.sh -p "MyPassword@123"
 ```
 
 ---

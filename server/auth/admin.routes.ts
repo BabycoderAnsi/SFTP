@@ -139,4 +139,35 @@ router.patch(
   }
 );
 
+router.get(
+  "/organizations",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const requestId = req.requestId;
+
+      const users = await listUsers({
+        status: UserStatus.ACTIVE,
+        limit: 100,
+        offset: 0,
+      });
+
+      const organizations = users
+        .filter(u => u.role !== Role.ADMIN)
+        .map(u => ({
+          id: u.id,
+          name: u.username.charAt(0).toUpperCase() + u.username.slice(1).replace(/[-_]/g, ' '),
+          username: u.username,
+        }));
+
+      successResponse(res, { organizations }, requestId);
+    } catch (err) {
+      log("error", "admin_list_organizations_error", {
+        requestId: req.requestId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      next(err);
+    }
+  }
+);
+
 export default router;

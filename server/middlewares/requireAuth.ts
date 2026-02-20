@@ -68,7 +68,13 @@ export function requireAuth(requiredRoles: string[] = []) {
 
       req.user = {
         ...payload,
+        id: user.id,
+        sub: user.username,
         role: user.role,
+        email: user.email,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       };
       next();
     } catch (err) {
